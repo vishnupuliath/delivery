@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TRoute">
+<meta name="theme-color" content="#F26522">
+<title>Trinetra Route Planner</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --saffron:#F26522;--saffron-lt:#FF8C42;--saffron-dk:#C94E0C;
+  --deep:#0E0600;--surface:#1A0900;--s2:#271200;--s3:#361A00;--s4:#462200;
+  --gold:#FFB347;--text:#FFF3E8;--dim:#C49060;--muted:#7A5030;
+  --ok:#4DB87A;--err:#E84040;
+  --brd:rgba(242,101,34,.18);--brd-lit:rgba(242,101,34,.45);
+  --r:14px;--rsm:10px;--rxs:7px;
+  --safebot:env(safe-area-inset-bottom,0px)
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Barlow',sans-serif;background:var(--deep);color:var(--text);-webkit-font-smoothing:antialiased}
+
+.screen{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden}
+.screen.active{display:flex}
+
+.hdr{background:var(--surface);border-bottom:1px solid var(--brd);padding:12px 16px 10px;padding-top:max(12px,env(safe-area-inset-top,12px));display:flex;align-items:center;gap:11px;flex-shrink:0;z-index:20}
+.hdr-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;color:var(--saffron);letter-spacing:.5px;line-height:1.1}
+.hdr-sub{font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.back-btn{background:none;border:none;color:var(--dim);font-size:24px;cursor:pointer;padding:2px 6px;line-height:1}
+
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 16px;padding-bottom:calc(24px + var(--safebot))}
+
+.lbl{font-size:10px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--saffron);margin-bottom:8px}
+
+.card{background:var(--s2);border:1px solid var(--brd);border-radius:var(--r);padding:14px;margin-bottom:14px}
+
+.inp-lbl{font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px}
+.row{display:flex;gap:8px;align-items:flex-start}
+
+input[type=text],input[type=tel]{
+  width:100%;background:var(--s3);border:1.5px solid var(--brd);
+  border-radius:var(--rsm);padding:11px 13px;color:var(--text);
+  font-family:'Barlow',sans-serif;font-size:15px;outline:none;
+  transition:border-color .2s;appearance:none
+}
+input:focus{border-color:var(--saffron)}
+input::placeholder{color:var(--muted)}
+
+.ac-wrap{position:relative;flex:1;min-width:0}
+.ac-dd{
+  position:absolute;top:calc(100% + 4px);left:0;right:0;
+  background:var(--s3);border:1.5px solid var(--brd-lit);
+  border-radius:var(--rsm);z-index:9999;overflow:hidden;
+  box-shadow:0 8px 32px rgba(0,0,0,.6);max-height:220px;overflow-y:auto;display:none
+}
+.ac-item{padding:11px 13px;cursor:pointer;font-size:13px;color:var(--dim);border-bottom:1px solid var(--brd);line-height:1.4;transition:background .1s}
+.ac-item:last-child{border-bottom:none}
+.ac-item:active,.ac-item:hover{background:var(--s4);color:var(--text)}
+.ac-msg{padding:10px 13px;color:var(--muted);font-size:12px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 20px;border-radius:var(--rsm);border:none;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;letter-spacing:.5px;cursor:pointer;text-transform:uppercase;transition:all .12s;white-space:nowrap}
+.btn:active{transform:scale(.96)}
+.btn-p{background:var(--saffron);color:#fff}
+.btn-p:hover{background:var(--saffron-lt)}
+.btn-g{background:var(--s3);color:var(--text);border:1px solid var(--brd)}
+.btn-ok{background:var(--ok);color:#fff}
+.btn-full{width:100%}
+
+.gps-btn{background:var(--s3);border:1.5px solid var(--brd);color:var(--dim);font-size:18px;border-radius:var(--rsm);padding:0 12px;cursor:pointer;height:46px;flex-shrink:0;display:flex;align-items:center;transition:border-color .15s,color .15s}
+.gps-btn:hover{border-color:var(--brd-lit);color:var(--gold)}
+
+.stop-list{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.stop-item{background:var(--s3);border:1px solid var(--brd);border-radius:var(--rsm);padding:12px;display:flex;flex-direction:column;gap:8px}
+.stop-hdr{display:flex;align-items:center;gap:10px}
+.stop-num{width:26px;height:26px;border-radius:50%;background:var(--saffron);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stop-del{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;font-size:18px;line-height:1;border-radius:4px;transition:color .15s}
+.stop-del:hover{color:var(--err)}
+
+#map-route{width:100%;height:220px;flex-shrink:0}
+#map-delivery{width:100%;height:100%}
+#map-wrap{flex:1;min-height:0;position:relative}
+.leaflet-tile-pane{filter:brightness(.85) saturate(.85)}
+.leaflet-control-attribution{display:none!important}
+.leaflet-popup-content-wrapper{background:var(--s2)!important;border:1px solid var(--brd-lit)!important;color:var(--text)!important;font-family:'Barlow',sans-serif!important;font-size:13px!important;border-radius:var(--rsm)!important;box-shadow:0 4px 20px rgba(0,0,0,.5)!important}
+.leaflet-popup-tip{background:var(--s2)!important}
+.leaflet-popup-close-button{color:var(--muted)!important}
+
+.route-list{display:flex;flex-direction:column}
+.ri{display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-bottom:1px solid var(--brd)}
+.ri:last-child{border-bottom:none}
+.rdw{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.rd{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px}
+.t-s{background:var(--ok);color:#fff}.t-d{background:var(--saffron);color:#fff}.t-e{background:var(--muted);color:#fff}
+.rl{width:2px;flex:1;min-height:8px;background:var(--brd);margin:3px 0}
+.ri-info{flex:1;min-width:0;padding-top:4px}
+.ri-tag{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;color:var(--saffron);margin-bottom:2px}
+.ri-addr{font-size:14px;color:var(--text);line-height:1.4;word-break:break-word}
+.ri-phone{font-size:12px;color:var(--gold);margin-top:3px}
+.ri-meta{font-size:11px;color:var(--muted);margin-top:2px}
+
+.sum{background:var(--s2);border:1px solid var(--brd);border-radius:var(--rsm);padding:10px 14px;display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+.si{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim)}
+.si strong{color:var(--text);font-weight:600}
+
+.d-prog{height:3px;background:var(--s3);flex-shrink:0}
+.d-prog-fill{height:100%;background:var(--saffron);transition:width .5s}
+.d-sheet{background:var(--surface);border-top:2.5px solid var(--saffron);border-radius:20px 20px 0 0;flex-shrink:0;max-height:56vh;overflow-y:auto;padding-bottom:calc(12px + var(--safebot))}
+.d-hdr{padding:14px 16px 12px;border-bottom:1px solid var(--brd)}
+.d-counter{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--saffron);font-weight:700;margin-bottom:4px}
+.d-addr{font-size:17px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:10px}
+.d-call{display:flex;align-items:center;gap:10px;background:var(--saffron);color:#fff;padding:11px 16px;border-radius:var(--rsm);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:20px;letter-spacing:1px;text-decoration:none;margin-bottom:8px;transition:background .15s}
+.d-call:active{background:var(--saffron-dk)}
+.d-meta{display:flex;gap:10px}
+.d-chip{background:var(--s3);border:1px solid var(--brd);border-radius:var(--rxs);padding:5px 10px;font-size:12px;color:var(--dim);display:flex;align-items:center;gap:5px}
+.d-actions{padding:12px 16px;display:flex;gap:10px}
+.next-peek{background:var(--s3);border:1px solid var(--brd);border-radius:var(--rxs);padding:8px 12px;margin:0 16px 4px;font-size:13px;color:var(--dim);display:flex;align-items:center;gap:8px}
+.next-peek strong{color:var(--text)}
+
+.done-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:16px;padding:32px}
+.done-ring{width:100px;height:100px;border-radius:50%;background:rgba(77,184,122,.12);border:3px solid var(--ok);display:flex;align-items:center;justify-content:center;font-size:48px;animation:pop .5s cubic-bezier(.175,.885,.32,1.275)}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+.done-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:30px;color:var(--ok)}
+.done-sub{color:var(--dim);font-size:15px;line-height:1.5}
+.done-stats{background:var(--s2);border:1px solid var(--brd);border-radius:var(--r);padding:14px 20px;display:flex;gap:24px;width:100%;max-width:320px;justify-content:center}
+.cs{text-align:center}
+.cs-n{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:26px;color:var(--saffron)}
+.cs-l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-top:2px}
+
+#toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--s2);border:1px solid var(--saffron);border-radius:var(--rsm);padding:10px 18px;font-size:14px;z-index:99999;transition:transform .3s;pointer-events:none;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#loading{position:fixed;inset:0;background:rgba(14,6,0,.88);display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;z-index:9998}
+#loading.active{display:flex}
+.spin{width:46px;height:46px;border:4px solid var(--s3);border-top-color:var(--saffron);border-radius:50%;animation:sp .75s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#loading-txt{color:var(--dim);font-size:15px}
+
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--s4);border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- LOGO SVG snippet reused -->
+<template id="logo-tpl">
+  <svg width="34" height="34" viewBox="0 0 40 40" fill="none">
+    <circle cx="20" cy="20" r="19" fill="#271200" stroke="#F26522" stroke-width="1.5"/>
+    <circle cx="20" cy="13" r="4" fill="#F26522"/>
+    <circle cx="12" cy="26" r="4" fill="#F26522"/>
+    <circle cx="28" cy="26" r="4" fill="#F26522"/>
+    <line x1="20" y1="13" x2="12" y2="26" stroke="#F26522" stroke-width="1.5" stroke-opacity=".5"/>
+    <line x1="20" y1="13" x2="28" y2="26" stroke="#F26522" stroke-width="1.5" stroke-opacity=".5"/>
+    <line x1="12" y1="26" x2="28" y2="26" stroke="#F26522" stroke-width="1.5" stroke-opacity=".5"/>
+  </svg>
+</template>
+
+<!-- ══ PLANNER ══ -->
+<div id="s-plan" class="screen active">
+  <div class="hdr">
+    <span id="logo1"></span>
+    <div><div class="hdr-title">Trinetra Route</div><div class="hdr-sub">Delivery Planner</div></div>
+  </div>
+  <div class="scroll">
+    <div class="lbl">Starting Point</div>
+    <div class="card">
+      <div class="inp-lbl">Depot / Start Address</div>
+      <div class="row">
+        <div class="ac-wrap">
+          <input type="text" id="inp-start" placeholder="Search start location…" autocomplete="off" spellcheck="false">
+          <div class="ac-dd" id="ac-start"></div>
+        </div>
+        <button class="gps-btn" onclick="useGPS('start')">📍</button>
+      </div>
+    </div>
+
+    <div class="lbl">Delivery Stops &nbsp;<span id="stop-ct" style="color:var(--muted);font-weight:400;letter-spacing:0">(0)</span></div>
+    <div id="stop-list" class="stop-list"></div>
+    <button class="btn btn-g btn-full" onclick="addStop()" style="margin-bottom:14px">＋ Add Delivery Stop</button>
+
+    <div class="lbl">Finishing Point</div>
+    <div class="card">
+      <div class="inp-lbl">End / Return Address</div>
+      <div class="row">
+        <div class="ac-wrap">
+          <input type="text" id="inp-end" placeholder="Same as start, or different…" autocomplete="off" spellcheck="false">
+          <div class="ac-dd" id="ac-end"></div>
+        </div>
+        <button class="gps-btn" onclick="useGPS('end')">📍</button>
+      </div>
+    </div>
+
+    <button class="btn btn-p btn-full" onclick="doOptimize()" style="margin-bottom:20px">
+      🗺️ Optimise &amp; Plan Route
+    </button>
+  </div>
+</div>
+
+<!-- ══ ROUTE REVIEW ══ -->
+<div id="s-route" class="screen">
+  <div class="hdr">
+    <button class="back-btn" onclick="go('s-plan')">‹</button>
+    <div><div class="hdr-title">Optimised Route</div><div class="hdr-sub">Review before starting</div></div>
+  </div>
+  <div id="map-route"></div>
+  <div class="scroll">
+    <div class="sum" id="route-sum"></div>
+    <div class="lbl">Delivery Order</div>
+    <div class="card" style="padding:4px 14px">
+      <div class="route-list" id="route-list"></div>
+    </div>
+    <button class="btn btn-ok btn-full" onclick="startDeliveries()">🚀 Start Deliveries</button>
+  </div>
+</div>
+
+<!-- ══ ACTIVE DELIVERY ══ -->
+<div id="s-deliver" class="screen">
+  <div id="map-wrap"><div id="map-delivery"></div></div>
+  <div class="d-prog"><div class="d-prog-fill" id="d-prog-fill"></div></div>
+  <div class="d-sheet">
+    <div class="d-hdr">
+      <div class="d-counter" id="d-ctr">Stop 1 of 1</div>
+      <div class="d-addr"    id="d-addr">…</div>
+      <a id="d-call" href="#" class="d-call" style="display:none"><span>📞</span><span id="d-phone">…</span></a>
+      <div class="d-meta" id="d-meta"></div>
+    </div>
+    <div class="d-actions">
+      <button class="btn btn-p" style="flex:0 0 auto" onclick="navigate()">🧭 Navigate</button>
+      <button class="btn btn-ok btn-full" onclick="markDone()">✓ Mark Delivered</button>
+    </div>
+    <div id="d-next-wrap" style="display:none;padding-bottom:4px">
+      <div class="next-peek">⏭ Next: <strong id="d-next"></strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ALL DONE ══ -->
+<div id="s-done" class="screen">
+  <div class="hdr">
+    <span id="logo2"></span>
+    <div><div class="hdr-title">Trinetra Route</div></div>
+  </div>
+  <div class="done-body">
+    <div class="done-ring">✅</div>
+    <div class="done-title">All Delivered!</div>
+    <p class="done-sub">Great work — every stop<br>has been completed.</p>
+    <div class="done-stats" id="done-stats"></div>
+    <button class="btn btn-p btn-full" style="max-width:320px" onclick="newRoute()">＋ Plan New Route</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="loading"><div class="spin"></div><div id="loading-txt">Loading…</div></div>
+
+<script>
+/* ══════════════════════════════════════════════
+   PWA BOOTSTRAP — inline manifest + blob SW
+   No external files needed. Zero 404s.
+══════════════════════════════════════════════ */
+(function bootstrapPWA(){
+  /* 1. Inline manifest injected as a data-URI link */
+  const manifest = {
+    name:"Trinetra Route Planner",
+    short_name:"TRoute",
+    description:"Optimised delivery route planner for Trinetra Logistics",
+    start_url:"./",
+    display:"standalone",
+    background_color:"#0E0600",
+    theme_color:"#F26522",
+    orientation:"portrait-primary",
+    icons:[
+      {src:makeIconDataURI(192),sizes:"192x192",type:"image/png",purpose:"any maskable"},
+      {src:makeIconDataURI(512),sizes:"512x512",type:"image/png",purpose:"any maskable"}
+    ]
+  };
+  const manifestBlob = new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'});
+  const manifestURL  = URL.createObjectURL(manifestBlob);
+  const mlink = document.createElement('link');
+  mlink.rel='manifest'; mlink.href=manifestURL;
+  document.head.appendChild(mlink);
+
+  /* 2. Apple touch icon */
+  const alink = document.createElement('link');
+  alink.rel='apple-touch-icon'; alink.href=makeIconDataURI(192);
+  document.head.appendChild(alink);
+  const flink = document.createElement('link');
+  flink.rel='icon'; flink.href=makeIconDataURI(64);
+  document.head.appendChild(flink);
+
+  /* 3. Unregister ALL old service workers, delete ALL old caches,
+        then register a fresh blob-based SW */
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistrations().then(regs=>{
+      return Promise.all(regs.map(r=>r.unregister()));
+    }).then(()=>{
+      return caches.keys();
+    }).then(keys=>{
+      return Promise.all(keys.map(k=>caches.delete(k)));
+    }).then(()=>{
+      /* Inline service worker as a Blob — no sw.js file needed */
+      const swCode = `
+        const CACHE='trinetra-osm-v3';
+        self.addEventListener('install',e=>{
+          e.waitUntil(
+            caches.open(CACHE)
+              .then(c=>c.add('./'))
+              .then(()=>self.skipWaiting())
+          );
+        });
+        self.addEventListener('activate',e=>{
+          e.waitUntil(
+            caches.keys()
+              .then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
+              .then(()=>self.clients.claim())
+          );
+        });
+        self.addEventListener('fetch',e=>{
+          const u=e.request.url;
+          const passThrough=[
+            'nominatim.openstreetmap.org','router.project-osrm.org',
+            'tile.openstreetmap.org','fonts.googleapis.com',
+            'fonts.gstatic.com','cdnjs.cloudflare.com'
+          ];
+          if(passThrough.some(d=>u.includes(d))){
+            e.respondWith(fetch(e.request).catch(()=>new Response('',{status:503})));
+            return;
+          }
+          e.respondWith(
+            caches.match(e.request).then(c=>{
+              if(c)return c;
+              return fetch(e.request).then(r=>{
+                if(e.request.method==='GET'&&r.status===200){
+                  const cl=r.clone();
+                  caches.open(CACHE).then(ca=>ca.put(e.request,cl));
+                }
+                return r;
+              });
+            }).catch(()=>new Response('Offline',{status:503}))
+          );
+        });
+      `;
+      const swBlob = new Blob([swCode],{type:'application/javascript'});
+      const swURL  = URL.createObjectURL(swBlob);
+      return navigator.serviceWorker.register(swURL,{scope:'./'});
+    }).catch(()=>{});
+  }
+})();
+
+function makeIconDataURI(size){
+  const c=document.createElement('canvas');c.width=c.height=size;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#1A0900';
+  if(ctx.roundRect)ctx.roundRect(0,0,size,size,size*.2);
+  else ctx.rect(0,0,size,size);
+  ctx.fill();
+  const s=size,cx=s/2,ty=s*.33,by=s*.65,lx=cx-s*.18,rx=cx+s*.18,r=s*.1;
+  ctx.strokeStyle='rgba(242,101,34,.5)';ctx.lineWidth=s*.04;
+  [[cx,ty],[lx,by],[rx,by]].forEach(([x1,y1],i,a)=>{
+    a.slice(i+1).forEach(([x2,y2])=>{ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();});
+  });
+  ctx.fillStyle='#F26522';
+  [[cx,ty],[lx,by],[rx,by]].forEach(([x,y])=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();});
+  return c.toDataURL('image/png');
+}
+
+/* Inject logos */
+document.querySelectorAll('[id^=logo]').forEach(el=>{
+  el.appendChild(document.getElementById('logo-tpl').content.cloneNode(true));
+});
+
+/* ══════════════════════════════════════════════
+   APP STATE
+══════════════════════════════════════════════ */
+const A={
+  stops:[],
+  start:{address:'',lat:null,lng:null},
+  end:{address:'',lat:null,lng:null},
+  route:[],totalDist:'',totalDur:'',
+  idx:0,t0:null,
+  mapR:null,mapD:null,
+  rLayer:null,dLayer:null,curMarker:null,
+  routeGeo:null
+};
+
+/* ══════════════════════════════════════════════
+   UTILITIES
+══════════════════════════════════════════════ */
+const $=id=>document.getElementById(id);
+let _tt;
+const toast=(m,d=2600)=>{const e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>e.classList.remove('show'),d);};
+const load=(m='Loading…')=>{$('loading-txt').textContent=m;$('loading').classList.add('active');};
+const unload=()=>$('loading').classList.remove('active');
+const go=id=>{document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$(id).classList.add('active');};
+const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+const fmtS=s=>{const h=Math.floor(s/3600),m=Math.round((s%3600)/60);return h?`${h}h ${m}m`:`${m} min`;};
+
+function save(){
+  localStorage.setItem('tr3_stops',JSON.stringify(A.stops));
+  localStorage.setItem('tr3_start',JSON.stringify(A.start));
+  localStorage.setItem('tr3_end',  JSON.stringify(A.end));
+}
+function loadSaved(){
+  try{A.stops=JSON.parse(localStorage.getItem('tr3_stops')||'[]');}catch(e){A.stops=[];}
+  try{A.start=JSON.parse(localStorage.getItem('tr3_start')||'{}');}catch(e){}
+  try{A.end  =JSON.parse(localStorage.getItem('tr3_end')  ||'{}');}catch(e){}
+}
+
+/* ══════════════════════════════════════════════
+   NOMINATIM AUTOCOMPLETE
+══════════════════════════════════════════════ */
+const _acT={};
+function attachAC(inpId,ddId,onPick){
+  const inp=$(inpId),dd=$(ddId);
+  inp.addEventListener('input',()=>{
+    clearTimeout(_acT[inpId]);
+    const q=inp.value.trim();
+    if(q.length<3){dd.style.display='none';return;}
+    _acT[inpId]=setTimeout(()=>nomSearch(q,dd,onPick),380);
+  });
+  inp.addEventListener('blur',()=>setTimeout(()=>dd.style.display='none',200));
+  inp.addEventListener('focus',()=>{if(dd.children.length)dd.style.display='block';});
+}
+
+async function nomSearch(q,dd,onPick){
+  dd.innerHTML='<div class="ac-msg">🔍 Searching…</div>';
+  dd.style.display='block';
+  try{
+    const r=await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&countrycodes=in`,
+      {headers:{'User-Agent':'TrinetraRoute/2.0','Accept-Language':'en'}}
+    );
+    const data=await r.json();
+    if(!data.length){dd.innerHTML='<div class="ac-msg">No results — try a different search</div>';return;}
+    dd.innerHTML='';
+    data.forEach(item=>{
+      const d=document.createElement('div');
+      d.className='ac-item';d.textContent=item.display_name;
+      d.addEventListener('mousedown',e=>e.preventDefault());
+      d.addEventListener('click',()=>{
+        dd.style.display='none';
+        onPick({address:item.display_name,lat:parseFloat(item.lat),lng:parseFloat(item.lon)});
+      });
+      dd.appendChild(d);
+    });
+  }catch(e){dd.innerHTML='<div class="ac-msg">Search failed — check connection</div>';}
+}
+
+function attachStopAC(sid){
+  const el=document.querySelector(`[data-sid="${sid}"]`);
+  if(!el)return;
+  const inp=el.querySelector('.sa'),dd=el.querySelector('.sad');
+  inp.addEventListener('input',()=>{
+    clearTimeout(_acT['s'+sid]);
+    const q=inp.value.trim();
+    if(q.length<3){dd.style.display='none';return;}
+    _acT['s'+sid]=setTimeout(()=>nomSearch(q,dd,res=>{
+      const st=A.stops.find(s=>s.id===sid);
+      if(st){st.address=res.address;st.lat=res.lat;st.lng=res.lng;save();}
+    }),380);
+  });
+  inp.addEventListener('blur',()=>setTimeout(()=>dd.style.display='none',200));
+  inp.addEventListener('focus',()=>{if(dd.children.length)dd.style.display='block';});
+}
+
+/* ══════════════════════════════════════════════
+   GPS
+══════════════════════════════════════════════ */
+function useGPS(field){
+  if(!navigator.geolocation){toast('Geolocation not available');return;}
+  load('Getting your location…');
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const{latitude:lat,longitude:lng}=pos.coords;
+    try{
+      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+        {headers:{'User-Agent':'TrinetraRoute/2.0'}});
+      const d=await r.json();
+      unload();
+      const addr=d.display_name||`${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      if(field==='start'){A.start={address:addr,lat,lng};$('inp-start').value=addr;}
+      else               {A.end  ={address:addr,lat,lng};$('inp-end').value=addr;}
+      save();toast('📍 Location set');
+    }catch(e){unload();toast('Reverse geocode failed');}
+  },()=>{unload();toast('Location access denied — check browser permissions');});
+}
+
+/* ══════════════════════════════════════════════
+   STOP MANAGEMENT
+══════════════════════════════════════════════ */
+let _sid=Date.now();
+
+function addStop(pre){
+  const st=pre||{id:++_sid,address:'',phone:'',lat:null,lng:null};
+  if(!pre)A.stops.push(st);
+  renderStops();
+  setTimeout(()=>{
+    attachStopAC(st.id);
+    if(!pre){const i=document.querySelector(`[data-sid="${st.id}"] .sa`);if(i)i.focus();}
+  },40);
+  save();
+}
+
+function removeStop(id){A.stops=A.stops.filter(s=>s.id!==id);renderStops();save();}
+
+function syncStop(id){
+  const el=document.querySelector(`[data-sid="${id}"]`);
+  const st=A.stops.find(s=>s.id===id);
+  if(!el||!st)return;
+  const na=el.querySelector('.sa').value.trim();
+  if(na!==st.address){st.lat=null;st.lng=null;}
+  st.address=na;
+  st.phone=el.querySelector('.sp').value.trim();
+  save();
+}
+
+function renderStops(){
+  const list=$('stop-list');list.innerHTML='';
+  A.stops.forEach((st,i)=>{
+    const div=document.createElement('div');
+    div.className='stop-item';div.setAttribute('data-sid',st.id);
+    div.innerHTML=`
+      <div class="stop-hdr">
+        <div class="stop-num">${i+1}</div>
+        <span style="font-size:13px;color:var(--dim);flex:1">Delivery Stop</span>
+        <button class="stop-del" onclick="removeStop(${st.id})">✕</button>
+      </div>
+      <div>
+        <div class="inp-lbl">Customer Address</div>
+        <div class="ac-wrap">
+          <input type="text" class="sa" placeholder="Search delivery address…"
+            value="${esc(st.address)}" oninput="syncStop(${st.id})" onchange="syncStop(${st.id})"
+            autocomplete="off" spellcheck="false">
+          <div class="ac-dd sad"></div>
+        </div>
+      </div>
+      <div>
+        <div class="inp-lbl">Phone Number (optional)</div>
+        <input type="tel" class="sp" placeholder="+91 XXXXX XXXXX"
+          value="${esc(st.phone)}" oninput="syncStop(${st.id})">
+      </div>`;
+    list.appendChild(div);
+  });
+  $('stop-ct').textContent=`(${A.stops.length})`;
+}
+
+/* ══════════════════════════════════════════════
+   GEOCODING
+══════════════════════════════════════════════ */
+async function geocode(address){
+  const r=await fetch(
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&countrycodes=in`,
+    {headers:{'User-Agent':'TrinetraRoute/2.0'}}
+  );
+  const d=await r.json();
+  if(!d.length)throw new Error(`Could not find: "${address.substring(0,45)}"`);
+  return{lat:parseFloat(d[0].lat),lng:parseFloat(d[0].lon)};
+}
+
+/* ══════════════════════════════════════════════
+   OPTIMISE (OSRM TRIP API)
+══════════════════════════════════════════════ */
+async function doOptimize(){
+  A.start.address=$('inp-start').value.trim();
+  A.end.address  =$('inp-end').value.trim()||A.start.address;
+  A.stops.forEach(st=>{
+    const el=document.querySelector(`[data-sid="${st.id}"]`);
+    if(!el)return;
+    const na=el.querySelector('.sa').value.trim();
+    if(na!==st.address){st.lat=null;st.lng=null;}
+    st.address=na;st.phone=el.querySelector('.sp').value.trim();
+  });
+  if(!A.start.address){toast('⚠️ Enter a start location');return;}
+  const valid=A.stops.filter(s=>s.address);
+  if(!valid.length){toast('⚠️ Add at least one delivery stop');return;}
+  save();
+
+  load('Geocoding addresses…');
+  try{
+    if(!A.start.lat){const g=await geocode(A.start.address);A.start.lat=g.lat;A.start.lng=g.lng;}
+    if(A.end.address===A.start.address){A.end.lat=A.start.lat;A.end.lng=A.start.lng;}
+    else if(!A.end.lat){const g=await geocode(A.end.address);A.end.lat=g.lat;A.end.lng=g.lng;}
+    for(const st of valid){if(!st.lat){const g=await geocode(st.address);st.lat=g.lat;st.lng=g.lng;}}
+  }catch(e){unload();toast('❌ '+e.message);return;}
+
+  $('loading-txt').textContent='Optimising route…';
+  try{
+    const pts=[
+      {lat:A.start.lat,lng:A.start.lng},
+      ...valid.map(s=>({lat:s.lat,lng:s.lng})),
+      {lat:A.end.lat,lng:A.end.lng}
+    ];
+    const coordStr=pts.map(p=>`${p.lng},${p.lat}`).join(';');
+    const url=`https://router.project-osrm.org/trip/v1/driving/${coordStr}?roundtrip=false&source=first&destination=last&steps=false&geometries=geojson&overview=full`;
+    const r=await fetch(url);
+    const data=await r.json();
+    if(data.code!=='Ok')throw new Error('OSRM: '+data.code);
+
+    const trip=data.trips[0];
+    const midWPs=data.waypoints.slice(1,data.waypoints.length-1);
+    const sorted=[...midWPs].sort((a,b)=>a.waypoint_index-b.waypoint_index);
+
+    A.route=sorted.map((wp,seq)=>{
+      const origIdx=midWPs.indexOf(wp);
+      const st=valid[origIdx];
+      const leg=trip.legs[seq];
+      return{
+        address:st.address,phone:st.phone||'',lat:st.lat,lng:st.lng,
+        distance:leg?(leg.distance/1000).toFixed(1)+' km':'',
+        duration:leg?fmtS(leg.duration):'',
+      };
+    });
+
+    A.totalDist=(trip.legs.reduce((a,l)=>a+l.distance,0)/1000).toFixed(1)+' km';
+    A.totalDur=fmtS(trip.legs.reduce((a,l)=>a+l.duration,0));
+    A.routeGeo=trip.geometry.coordinates.map(c=>[c[1],c[0]]);
+
+    unload();save();
+    buildRouteScreen();
+  }catch(e){unload();toast('❌ '+(e.message||'Routing failed'));console.error(e);}
+}
+
+/* ══════════════════════════════════════════════
+   ROUTE SCREEN
+══════════════════════════════════════════════ */
+function buildRouteScreen(){
+  go('s-route');
+  $('route-sum').innerHTML=`
+    <div class="si">🚚 <strong>${A.route.length}</strong> stops</div>
+    <div class="si">📏 <strong>${A.totalDist}</strong></div>
+    <div class="si">⏱ <strong>${A.totalDur}</strong> est.</div>`;
+
+  const list=$('route-list');list.innerHTML='';
+  const all=[
+    {type:'s',lbl:'S',tag:'START', addr:A.start.address,phone:'',dist:'',dur:''},
+    ...A.route.map((s,i)=>({type:'d',lbl:i+1,tag:`STOP ${i+1}`,addr:s.address,phone:s.phone,dist:s.distance,dur:s.duration})),
+    {type:'e',lbl:'E',tag:'FINISH',addr:A.end.address,phone:'',dist:'',dur:''},
+  ];
+  all.forEach((p,i)=>{
+    const last=i===all.length-1;
+    const div=document.createElement('div');div.className='ri';
+    div.innerHTML=`
+      <div class="rdw">
+        <div class="rd t-${p.type}">${p.lbl}</div>
+        ${!last?'<div class="rl"></div>':''}
+      </div>
+      <div class="ri-info">
+        <div class="ri-tag">${p.tag}</div>
+        <div class="ri-addr">${esc(p.addr)}</div>
+        ${p.phone?`<div class="ri-phone">📞 ${esc(p.phone)}</div>`:''}
+        ${p.dist?`<div class="ri-meta">📏 ${p.dist} &nbsp;·&nbsp; ⏱ ${p.dur}</div>`:''}
+      </div>`;
+    list.appendChild(div);
+  });
+
+  setTimeout(()=>{
+    if(!A.mapR){
+      A.mapR=L.map('map-route',{zoomControl:true,attributionControl:false});
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(A.mapR);
+    }
+    if(A.rLayer)A.rLayer.remove();
+    A.rLayer=L.polyline(A.routeGeo,{color:'#F26522',weight:5,opacity:.85}).addTo(A.mapR);
+    A.mapR.fitBounds(A.rLayer.getBounds(),{padding:[22,22]});
+    [{lat:A.start.lat,lng:A.start.lng,lbl:'S',col:'#4DB87A'},
+     ...A.route.map((s,i)=>({lat:s.lat,lng:s.lng,lbl:String(i+1),col:'#F26522'})),
+     {lat:A.end.lat,lng:A.end.lng,lbl:'E',col:'#7A5030'}
+    ].forEach(p=>L.marker([p.lat,p.lng],{icon:numIcon(p.lbl,p.col)}).addTo(A.mapR));
+    A.mapR.invalidateSize();
+  },250);
+}
+
+/* ══════════════════════════════════════════════
+   ACTIVE DELIVERY
+══════════════════════════════════════════════ */
+function startDeliveries(){
+  A.idx=0;A.t0=Date.now();
+  go('s-deliver');
+  setTimeout(()=>{
+    if(!A.mapD){
+      A.mapD=L.map('map-delivery',{zoomControl:false,attributionControl:false});
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(A.mapD);
+    }
+    refreshDelivery();
+  },150);
+}
+
+function refreshDelivery(){
+  const st=A.route[A.idx],tot=A.route.length,i=A.idx;
+  $('d-prog-fill').style.width=(i/tot*100)+'%';
+  $('d-ctr').textContent=`Stop ${i+1} of ${tot}`;
+  $('d-addr').textContent=st.address;
+  const cb=$('d-call');
+  if(st.phone){cb.style.display='flex';$('d-phone').textContent=st.phone;cb.href='tel:'+st.phone.replace(/\s/g,'');}
+  else cb.style.display='none';
+  $('d-meta').innerHTML=st.distance?`<div class="d-chip">📏 ${st.distance}</div><div class="d-chip">⏱ ${st.duration}</div>`:'';
+  const nw=$('d-next-wrap');
+  if(i<tot-1){nw.style.display='block';const nx=A.route[i+1];$('d-next').textContent=nx.address.length>50?nx.address.slice(0,50)+'…':nx.address;}
+  else nw.style.display='none';
+
+  const pos=[st.lat,st.lng];
+  A.mapD.setView(pos,16);
+  if(A.curMarker)A.curMarker.remove();
+  A.curMarker=L.marker(pos,{icon:pulseIcon()}).addTo(A.mapD).bindPopup(`<b>Stop ${i+1}</b><br>${st.address}`).openPopup();
+  if(A.dLayer)A.dLayer.remove();
+  const from=i===0?[A.start.lat,A.start.lng]:[A.route[i-1].lat,A.route[i-1].lng];
+  A.dLayer=L.polyline([from,pos],{color:'#F26522',weight:5,dashArray:'8 6',opacity:.8}).addTo(A.mapD);
+  A.mapD.invalidateSize();
+}
+
+function navigate(){
+  const st=A.route[A.idx];
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${st.lat},${st.lng}&travelmode=driving`,'_blank');
+}
+
+function markDone(){
+  A.idx++;
+  if(A.idx>=A.route.length)showDone();
+  else{toast(`✅ Stop ${A.idx} delivered!`);refreshDelivery();}
+}
+
+function showDone(){
+  const el=Math.round((Date.now()-A.t0)/60000),h=Math.floor(el/60),m=el%60;
+  $('done-stats').innerHTML=`
+    <div class="cs"><div class="cs-n">${A.route.length}</div><div class="cs-l">Deliveries</div></div>
+    <div class="cs"><div class="cs-n">${A.totalDist}</div><div class="cs-l">Distance</div></div>
+    <div class="cs"><div class="cs-n">${h?h+'h '+m+'m':m+' min'}</div><div class="cs-l">On Route</div></div>`;
+  go('s-done');
+}
+
+function newRoute(){
+  A.stops=[];A.route=[];A.idx=0;
+  A.start={address:'',lat:null,lng:null};A.end={address:'',lat:null,lng:null};
+  save();renderStops();$('inp-start').value='';$('inp-end').value='';go('s-plan');
+}
+
+/* ══════════════════════════════════════════════
+   LEAFLET ICONS
+══════════════════════════════════════════════ */
+function numIcon(lbl,col){
+  return L.divIcon({
+    html:`<div style="background:${col};color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.5);border:2px solid rgba(255,255,255,.6)">${lbl}</div>`,
+    className:'',iconSize:[28,28],iconAnchor:[14,14],popupAnchor:[0,-14]
+  });
+}
+function pulseIcon(){
+  return L.divIcon({
+    html:`<div style="position:relative;width:44px;height:44px">
+      <div style="position:absolute;inset:0;border-radius:50%;background:rgba(242,101,34,.25);animation:rpl 1.4s ease-out infinite"></div>
+      <div style="position:absolute;top:10px;left:10px;width:24px;height:24px;background:#F26522;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5)"></div>
+    </div>
+    <style>@keyframes rpl{0%{transform:scale(.5);opacity:.9}100%{transform:scale(2.2);opacity:0}}</style>`,
+    className:'',iconSize:[44,44],iconAnchor:[22,22],popupAnchor:[0,-22]
+  });
+}
+
+/* ══════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════ */
+loadSaved();
+renderStops();
+if(A.start.address)$('inp-start').value=A.start.address;
+if(A.end.address)  $('inp-end').value  =A.end.address;
+attachAC('inp-start','ac-start',res=>{A.start=res;save();});
+attachAC('inp-end',  'ac-end',  res=>{A.end  =res;save();});
+setTimeout(()=>A.stops.forEach(st=>attachStopAC(st.id)),80);
+</script>
+</body>
+</html>
